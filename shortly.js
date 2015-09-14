@@ -2,6 +2,7 @@ var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
+var session = require('express-session');
 
 
 var db = require('./app/config');
@@ -16,31 +17,75 @@ var app = express();
 app.set('views', __dirname + '/views');
 app.set('view engine', 'ejs');
 app.use(partials());
+app.use(session({
+  secret: 'keyboard cat',
+  resave: false,
+  saveUninitialized: false
+}));
+
 // Parse JSON (uniform resource locators)
 app.use(bodyParser.json());
 // Parse forms (signup/login)
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.urlencoded({ extended: true })); // wat
 app.use(express.static(__dirname + '/public'));
 
+var login;
 
-app.get('/', 
+app.get('/',
 function(req, res) {
-  res.render('index');
+  if (req.session.loggedIn) {
+    res.render('index');
+  } else {
+    res.redirect('/login');
+  }
 });
 
-app.get('/create', 
+app.get('/login',
 function(req, res) {
-  res.render('index');
+  if (req.session.loggedIn) {
+    res.redirect('/');
+  } else {
+    res.render('/login');
+  }
 });
 
-app.get('/links', 
+app.post('/login',
 function(req, res) {
-  Links.reset().fetch().then(function(links) {
-    res.send(200, links.models);
+  var user = req.body.username;
+  var pass = req.body.password;
+  new User({ username: user, password: pass })
+    .fetch()
+    .then(function(found) {
+      if (found) {
+        req.session.loggedIn = true;
+        res.redirect('/');
+      } else {
+        res.redirect('/login');
+      }
   });
 });
 
-app.post('/links', 
+app.get('/create',
+function(req, res) {
+  if (req.session.loggedIn) {
+    res.render('index');
+  } else {
+    res.redirect('/login');
+  }
+});
+
+app.get('/links',
+function(req, res) {
+  if (req.session.loggedIn) {
+    Links.reset().fetch().then(function(links) {
+      res.send(200, links.models);
+    });
+  } else {
+    res.redirect('/login');
+  }
+});
+
+app.post('/links',
 function(req, res) {
   var uri = req.body.url;
 
@@ -73,6 +118,24 @@ function(req, res) {
     }
   });
 });
+
+app.post('/signup',
+function(req, res) {
+  var username = req.body.username;
+  var password = req.body.password;
+
+  var user = new User({
+    username: username,
+    password: password
+  });
+
+  user.save().then(function(newUser) {
+    req.session.loggedIn = true;
+    Users.add(newUser);
+    res.redirect('/');
+  });
+});
+
 
 /************************************************************/
 // Write your authentication routes here
