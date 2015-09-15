@@ -7,16 +7,14 @@ var User = db.Model.extend({
 
   initialize: function(params) {
     this.set('username', params.username);
-    this.set('password', params.password);
+    bcrypt.hash(params.password, null, null, function(err, hash) {
+      if (err) {
+        console.log(err);
+      } else {
+        this.set('password', hash);
+      }
+    }.bind(this));
   },
-
-  encryptUserInfo: function() {
-
-  },
-
-  storeUserInfo: function() {
-
-  }
 });
 
 module.exports = User;

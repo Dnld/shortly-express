@@ -56,10 +56,11 @@ describe('', function() {
         //   type: 'DatabaseError',
         //   message: 'Failed to create test setup data'
         // };
-      });
+  });
   });
 
   describe('Link creation:', function(){
+    this.timeout(0);
 
     var requestWithSession = request.defaults({jar: true});
 
@@ -286,6 +287,7 @@ describe('', function() {
   }); // 'Account Creation'
 
   describe('Account Login:', function(){
+    this.timeout(0);
 
     var requestWithSession = request.defaults({jar: true});
 
