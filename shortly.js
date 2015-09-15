@@ -55,15 +55,16 @@ function(req, res) {
 
 app.post('/login',
 function(req, res) {
-  var user = req.body.username;
-  var pass = req.body.password;
-  new User({ username: user })
+  var username = req.body.username;
+  var password = req.body.password;
+  new User({ username: username })
     .fetch()
     .then(function(found) {
       if (found) {
-        bcrypt.compare(pass, found.get('password'), function(err, result) {
+        bcrypt.compare(password, found.get('password'), function(err, result) {
           if (result) {
             req.session.loggedIn = true;
+            req.session.username = username;
             res.redirect('/');
           } else {
             res.redirect('/login');
@@ -96,6 +97,7 @@ function(req, res) {
 
   user.save().then(function(newUser) {
     req.session.loggedIn = true;
+    req.session.username = username;
     Users.add(newUser);
     res.redirect('/');
   });
@@ -122,7 +124,8 @@ function(req, res) {
 app.get('/links',
 function(req, res) {
   checkUser(req, res, function() {
-    Links.reset().fetch().then(function(links) {
+    var username = req.session.username;
+    Links.reset().query({where: {'username': username}}).fetch().then(function(links) {
       res.send(200, links.models);
     });
   });
@@ -147,10 +150,12 @@ function(req, res) {
           return res.send(404);
         }
 
+        var username = req.session.username;
         var link = new Link({
           url: uri,
           title: title,
-          base_url: req.headers.origin
+          base_url: req.headers.origin,
+          username: username
         });
 
         link.save().then(function(newLink) {
