@@ -29,20 +29,58 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
-function checkUser(req, res, next) {
-  if (req.session.loggedIn) {
-    next();
-  } else {
-    res.redirect('/login');
-  }
-}
+app.get('/', util.checkUser, function(req, res) {
+  res.render('index');
+});
 
-app.get('/',
-function(req, res) {
-  checkUser(req, res, function() {
-    res.render('index');
+app.get('/create', util.checkUser, function(req, res) {
+  res.render('index');
+});
+
+app.get('/links', util.checkUser, function(req, res) {
+  var username = req.session.username;
+  Links.reset().query({where: {'username': username}}).fetch().then(function(links) {
+    res.send(200, links.models);
   });
 });
+
+app.post('/links',
+function(req, res) {
+  var uri = req.body.url;
+
+  if (!util.isValidUrl(uri)) {
+    console.log('Not a valid url: ', uri);
+    return res.send(404);
+  }
+
+  new Link({ url: uri }).fetch().then(function(found) {
+    if (found) {
+      res.send(200, found.attributes);
+    } else {
+      util.getUrlTitle(uri, function(err, title) {
+        if (err) {
+          console.log('Error reading URL heading: ', err);
+          return res.send(404);
+        }
+
+        var username = req.session.username;
+        var link = new Link({
+          url: uri,
+          title: title,
+          base_url: req.headers.origin,
+          username: username
+        });
+
+        link.save().then(function(newLink) {
+          Links.add(newLink);
+          res.send(200, newLink);
+        });
+      });
+    }
+  });
+});
+
+// login/signup
 
 app.get('/login',
 function(req, res) {
@@ -61,14 +99,13 @@ function(req, res) {
     .fetch()
     .then(function(found) {
       if (found) {
-        bcrypt.compare(password, found.get('password'), function(err, result) {
-          if (result) {
-            req.session.loggedIn = true;
-            req.session.username = username;
-            res.redirect('/');
-          } else {
-            res.redirect('/login');
+        found.comparePassword(password, function(result) {
+          if (!result) {
+            return res.redirect('/login');
           }
+          req.session.loggedIn = true;
+          req.session.username = username;
+          res.redirect('/');
         });
       } else {
         res.redirect('/login');
@@ -110,59 +147,6 @@ function(req, res) {
       console.log(err);
     } else {
       res.redirect('/');
-    }
-  });
-});
-
-app.get('/create',
-function(req, res) {
-  checkUser(req, res, function() {
-    res.render('index');
-  });
-});
-
-app.get('/links',
-function(req, res) {
-  checkUser(req, res, function() {
-    var username = req.session.username;
-    Links.reset().query({where: {'username': username}}).fetch().then(function(links) {
-      res.send(200, links.models);
-    });
-  });
-});
-
-app.post('/links',
-function(req, res) {
-  var uri = req.body.url;
-
-  if (!util.isValidUrl(uri)) {
-    console.log('Not a valid url: ', uri);
-    return res.send(404);
-  }
-
-  new Link({ url: uri }).fetch().then(function(found) {
-    if (found) {
-      res.send(200, found.attributes);
-    } else {
-      util.getUrlTitle(uri, function(err, title) {
-        if (err) {
-          console.log('Error reading URL heading: ', err);
-          return res.send(404);
-        }
-
-        var username = req.session.username;
-        var link = new Link({
-          url: uri,
-          title: title,
-          base_url: req.headers.origin,
-          username: username
-        });
-
-        link.save().then(function(newLink) {
-          Links.add(newLink);
-          res.send(200, newLink);
-        });
-      });
     }
   });
 });

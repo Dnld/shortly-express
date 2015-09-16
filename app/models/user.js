@@ -5,16 +5,25 @@ var Promise = require('bluebird');
 var User = db.Model.extend({
   tableName: 'users',
 
-  initialize: function(params) {
-    this.set('username', params.username);
-    bcrypt.hash(params.password, null, null, function(err, hash) {
-      if (err) {
-        console.log(err);
-      } else {
-        this.set('password', hash);
-      }
-    }.bind(this));
+  initialize: function() {
+    this.on('creating', this.hashPassword);
   },
+
+  comparePassword: function(password, callback) {
+    bcrypt.compare(password, this.get('password'), function(err, result) {
+      callback(result);
+    });
+  },
+
+  hashPassword: function() {
+    var promiseHasher = Promise.promisify(bcrypt.hash);
+
+    return promiseHasher(this.get('password'), null, null)
+      .bind(this)
+      .then(function(hash) {
+        this.set('password', hash);
+      });
+  }
 });
 
 module.exports = User;
